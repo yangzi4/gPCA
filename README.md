@@ -11,4 +11,4 @@ JIVE_sim: script for JIVE simulations
 
 # Data
 
-dataset_20140_measured: measured and basal levels of phosphorylated AKT and ERK
+dataset_20140_measured: measured and basal levels of phosphorylated AKT and ERK, from http://lincs.hms.harvard.edu/niepel-bmcbiol-2014/
