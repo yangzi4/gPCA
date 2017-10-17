@@ -23,7 +23,7 @@ def readfile(f_name):
 
 def gPCA_analyze(data_, DD_=range(1, 5), rtn='ws'):
     "Retrieves PCs from gPCA."
-    otp = gPCA_select(data_, D_range=DD_)  ## r a s idx h ve/nv
+    otp = gPCA_select(data_, D_range=DD_, n_boot_=1000)  ## r a s idx h ve/nv
     rnk_est = DD_[otp[3]]
     alpha_est = otp[1][otp[3]]
     
@@ -95,12 +95,12 @@ def gPCA_comm(df_1, fctr_idx_, specs_=[[0], [0], [0], [0], [0]], ch_=1):
     
     ## gPCA
     if ch_ == 1:
-        gPCA_res = gPCA_func([log10(ds_3s[k] + 1) for k in range(K)])
+        gPCA_res = gPCA_func([ds_3s[k] for k in range(K)])
         print_gPCA(gPCA_res)
         return array(gPCA_res)
     elif ch_ == 2:
         random.seed(1)
-        gPCA_res2_ = gPCA_analyze([log10(ds_3s[k] + 1) for k in range(K)], rtn='ws')
+        gPCA_res2_ = gPCA_analyze([ds_3s[k] for k in range(K)], rtn='ws')
         gPCA_res2 = hstack([gPCA_res2_[1][k][:, :1] for k in range(K)]).T
         print gPCA_res2
         return array(gPCA_res2)
@@ -190,40 +190,44 @@ iv_lvl_list = get_unique_levels(df_, iv_col_names)  ## 15 2 2 3 3
 
 
 ## ___ analyze ___
-## Protein_ID Ligand_Conc Kinase Meas_Time BR_subtype : 15 2 2 3 3
+## variables: Protein_ID Ligand_Conc Kinase Meas_Time BR_subtype : 15 2 2 3 3
 
+## _1_ ##
+print '____________________________________'
 all_res = []
 for i1 in range(2):  ## subtype x ligand : 3 by 15 (2x2x3)
     for i2 in range(2):
         for i3 in [0, 2, 1]:
             res = gPCA_comm(df_, 4, [range(15), [i1], [i2], [i3], [0, 1, 2]])
-            savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d.txt' % (i1, i2, i3), res)
+            #savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d.txt' % (i1, i2, i3), res)
             all_res.append(res)
-savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(all).txt' % (i1, i2, i3), vstack(all_res))
+#savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(all).txt' % (i1, i2, i3), vstack(all_res))
 
+print '____________________________________'
 all_res = []
 for i2 in range(2):  ## concentration x ligand : 2 by 15 (2x3)
     for i3 in [0, 2, 1]:
         res = gPCA_comm(df_, 1, [range(15), [0, 1], [i2], [i3], [0, 1, 2]])
-        savetxt('RTK_gPCA_res_CNCxLGD_%d-%d.txt' % (i2, i3), res)
+        #savetxt('RTK_gPCA_res_CNCxLGD_%d-%d.txt' % (i2, i3), res)
         all_res.append(res)
-savetxt('RTK_gPCA_res_CNCxLGD_%d-%d(all).txt' % (i2, i3), vstack(all_res))
+#savetxt('RTK_gPCA_res_CNCxLGD_%d-%d(all).txt' % (i2, i3), vstack(all_res))
 
+print '____________________________________'
 all_res = []
 for i1 in range(2):  ## kinase x ligand : 2 by 15 (2x3)
     for i3 in [0, 2, 1]:
         res = gPCA_comm(df_, 2, [range(15), [i1], [0, 1], [i3], [0, 1, 2]])
-        savetxt('RTK_gPCA_res_KNSxLGD_%d-%d.txt' % (i1, i3), res)
+        #savetxt('RTK_gPCA_res_KNSxLGD_%d-%d.txt' % (i1, i3), res)
         all_res.append(res)
-savetxt('RTK_gPCA_res_KNSxLGD_%d-%d(all).txt' % (i1, i3), vstack(all_res))
+#savetxt('RTK_gPCA_res_KNSxLGD_%d-%d(all).txt' % (i1, i3), vstack(all_res))
 
 all_res = []
 for i1 in range(2):  ## time x ligand : 3 by 15 (2x2)
     for i2 in range(2):
         res = gPCA_comm(df_, 3, [range(15), [i1], [i2], [0, 2, 1], [0, 1, 2]])
-        savetxt('RTK_gPCA_res_MTMxLGD_%d-%d.txt' % (i1, i2), res)
+        #savetxt('RTK_gPCA_res_MTMxLGD_%d-%d.txt' % (i1, i2), res)
         all_res.append(res)
-savetxt('RTK_gPCA_res_MTMxLGD_%d-%d(all).txt' % (i1, i2), vstack(all_res))
+#savetxt('RTK_gPCA_res_MTMxLGD_%d-%d(all).txt' % (i1, i2), vstack(all_res))
 
 #Protein HMS LINCS ID	Protein Name
 #200864	VEGF165	0
@@ -254,16 +258,17 @@ n_lgs = [0, 8, 9, 10, 11, 12, 13, 14]
 n_lgs_ = [200864, 200857, 200858, 200859, 200860, 200861, 200862, 200863]
 lgd_grps = [ERBB_lgs, IGFINS_lgs, n_lgs]
 
+## _2_ ##
 i1, i2, i3 = 1, 0, 2  ## 100 ng/ml, AKT, 30 min
 #i1, i2, i3 = 0, 1, 2  ## 1 ng/ml, ERK, 30 min
 res = gPCA_comm(df_, 4, [arange(15)[ERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=1)
-savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(ERBB).txt' % (i1, i2, i3), res)
+#savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(ERBB).txt' % (i1, i2, i3), res)
 res = gPCA_comm(df_, 4, [arange(15)[nERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=1)
-savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(nERBB).txt' % (i1, i2, i3), res)
-res = gPCA_comm(df_, 4, [arange(15)[IGFINS_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=1)
-savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(IGFINS).txt' % (i1, i2, i3), res)
-res = gPCA_comm(df_, 4, [arange(15)[n_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=1)
-savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(nERBBIGFINS).txt' % (i1, i2, i3), res)
+#savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(nERBB).txt' % (i1, i2, i3), res)
+#res = gPCA_comm(df_, 4, [arange(15)[IGFINS_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=1)
+#savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(IGFINS).txt' % (i1, i2, i3), res)
+#res = gPCA_comm(df_, 4, [arange(15)[n_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=1)
+#savetxt('RTK_gPCA_res_SBTxLGD_%d-%d-%d(nERBBIGFINS).txt' % (i1, i2, i3), res)
 
 if 0:
     i1, i2, i3 = 1, 0, 2  ## 100 ng/ml, AKT, 30 min
@@ -286,10 +291,11 @@ if 0:
         print_gPCA(res_)
         gPCA_res_.append(array(res_))
     savetxt('RTK_gPCA_res_LGDxSBT_%d-%d-%d(all).txt' % (i1, i2, i3), vstack(gPCA_res_))
+## _3_ ##
 if 1:
     data_SBT_LGD_f = hstack([vstack(data_SBT_LGD1), vstack(data_SBT_LGD2)])
     plt.figure()
-    htmp = plt.pcolormesh(log10(data_SBT_LGD_f + 1))
+    htmp = plt.pcolormesh(log10(1+data_SBT_LGD_f))
     plt.xlabel('ligands')
     plt.ylabel('cell lines')
     plt.xticks([2, 4, 9.5], ['ErbB', '|', 'non-ErbB'])
@@ -302,51 +308,25 @@ if 1:
 from scipy.stats import f_oneway
 from scipy.stats import ttest_ind
 
-## 100 ng/ml, AKT, 30 min
-i1, i2, i3 = 1, 0, 2
-data_SBT_LGD1 = gPCA_comm(df_, 4, [arange(15)[ERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=3)
-data_SBT_LGD2 = gPCA_comm(df_, 4, [arange(15)[nERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=3)
-data_SBT_LGD = [data_SBT_LGD1, data_SBT_LGD2]
-res = f_oneway(data_SBT_LGD1[1].flatten(), data_SBT_LGD2[1].flatten())
-print res.statistic, res.pvalue
-res = ttest_ind(data_SBT_LGD1[1].flatten(), data_SBT_LGD2[1].flatten())
-print res.statistic, res.pvalue
-
-## 1 ng/ml, ERK, 30 min
-i1, i2, i3 = 0, 1, 2
-data_SBT_LGD1 = gPCA_comm(df_, 4, [arange(15)[ERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=3)
-data_SBT_LGD2 = gPCA_comm(df_, 4, [arange(15)[nERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=3)
-data_SBT_LGD = [data_SBT_LGD1, data_SBT_LGD2]
-data_SBT_LGD_k2 = hstack([data_SBT_LGD1[2], data_SBT_LGD2[2]])
-res = f_oneway(data_SBT_LGD_k2[:, [3, 11, 12]].flatten(),
-    data_SBT_LGD_k2[:, [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 13, 14]].flatten())
-print res.statistic, res.pvalue
-res = ttest_ind(data_SBT_LGD_k2[:, [3, 11, 12]].flatten(),
-    data_SBT_LGD_k2[:, [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 13, 14]].flatten())
-print res.statistic, res.pvalue
-
 i1, i2, i3 = 1, 0, 2  ## 100 ng/ml, AKT, 30 min
 #i1, i2, i3 = 0, 1, 2  ## 1 ng/ml, ERK, 30 min
 data_SBT_LGD1 = gPCA_comm(df_, 4, [arange(15)[ERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=3)
 data_SBT_LGD2 = gPCA_comm(df_, 4, [arange(15)[nERBB_lgs], [i1], [i2], [i3], [0, 1, 2]], ch_=3)
+data_SBT_LGD3 = gPCA_comm(df_, 4, [arange(15), [i1], [i2], [i3], [0, 1, 2]], ch_=3)
 data_SBT_LGD = [data_SBT_LGD1, data_SBT_LGD2]
+
+## _4_ ##
 print [mean(data_) for data_ in data_SBT_LGD1]
 res = f_oneway(data_SBT_LGD1[0].flatten(), data_SBT_LGD1[1].flatten(),
     data_SBT_LGD1[2].flatten())
-print res.statistic, res.pvalue
+print res
 for grp in [[0, 1], [0, 2], [1, 2]]:
     res = f_oneway(data_SBT_LGD1[grp[0]].flatten(), data_SBT_LGD1[grp[1]].flatten())
-    print res.statistic, res.pvalue
+    print res
 print [mean(data_) for data_ in data_SBT_LGD2]
 res = f_oneway(data_SBT_LGD2[0].flatten(), data_SBT_LGD2[1].flatten(),
     data_SBT_LGD2[2].flatten())
-print res.statistic, res.pvalue
+print res
 for grp in [[0, 1], [0, 2], [1, 2]]:
     res = f_oneway(data_SBT_LGD2[grp[0]].flatten(), data_SBT_LGD2[grp[1]].flatten())
-    print res.statistic, res.pvalue
-
-#from statsmodels.formula.api import ols
-#from statsmodels.stats.anova import anova_lm
-#formula_ = ''
-#model_ = ols(formula_, df_).fit()
-#aov_table_ = anova_lm(model_, typ=2)
+    print res
