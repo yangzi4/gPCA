@@ -1,9 +1,7 @@
 from numpy import *
 from sklearn.decomposition import PCA
 import scipy.special as sps
-import scipy.stats as ss
 import scipy.linalg as sl
-import scipy.integrate as si
 
 def gPCA_run(Xs__, D, normlz='SS'):
     "gPCA : statistics."
@@ -41,7 +39,7 @@ def gPCA_run(Xs__, D, normlz='SS'):
             alphas.append(sqrt(min(min(linalg.svd(hs[k].dot(hs[k_].T))[1]), 1.0)))
     return [[errs_within, err_between, err_total], mean(alphas), [hf, hs, h2], [var_expl_f, noise_var_f]]
 
-def gPCA_bootstrap(Xs, D, n_boot=100, verbose=0):
+def gPCA_bootstrap(Xs, D, n_boot=1000, verbose=0):
     "gPCA : bootstrap."
     K = len(Xs)
     Ns, M = [shape(Xs[k])[0] for k in range(K)], shape(Xs[0])[1]
@@ -62,7 +60,7 @@ def gPCA_bootstrap(Xs, D, n_boot=100, verbose=0):
         if verbose: print rep, ratio_list[-1], alpha_list[-1], sigma_list[-1], ':', mean(alpha_list), std(alpha_list)/sqrt(len(alpha_list))
     return ratio_list, alpha_list, sigma_list
 
-def gPCA_select(Xs, D_range=range(1, 5), n_boot_=100, verbose=0):
+def gPCA_select(Xs, D_range=range(1, 5), vers=1, n_boot_=1000, verbose=0):
     "gPCA : rank selection."
     K = len(Xs)
     Ns, M = [shape(Xs[k])[0] for k in range(K)], shape(Xs[0])[1]
@@ -73,7 +71,8 @@ def gPCA_select(Xs, D_range=range(1, 5), n_boot_=100, verbose=0):
         alphas.append(mean(res_D[1]))
         sigmas.append(mean(res_D[2]))
         if verbose: print '', D_, ratios[-1], alphas[-1], sigmas[-1]
-    idx = argmin(sigmas)
+    if vers == 1: idx = nanargmin(sigmas)
+    if vers == 2: idx = argmax(alphas)
     if verbose:
         print ratios
         print " " + str(alphas)
@@ -81,6 +80,98 @@ def gPCA_select(Xs, D_range=range(1, 5), n_boot_=100, verbose=0):
     res = gPCA_run(Xs, D_range[idx])
     #print res[3][0]
     return ratios, alphas, sigmas, idx, res[2], res[3]
+
+def LP_evid(X_, dim_):
+    "Evidence for Laplace method."
+    N, M = shape(X_)
+    pca = PCA(n_components=dim_)
+    pca.fit(X_)
+    sigma2 = pca.noise_variance_
+    
+    ls = list(sl.eigh(X_.T.dot(X_))[0][::-1])
+    ls_ = [ls[d] for d in range(dim_)] + [sigma2 for d in range(dim_, M)]
+    l_th = (sum([log(ls[d]) for d in range(dim_)]) + (M - dim_)*log(sigma2))*N/2.0
+    const = M*dim_ - dim_*(dim_ + 1)/2.0
+    Az = prod([prod([N*(1.0/ls_[j] - 1.0/ls_[d])*(ls[d] - ls[j])
+        for j in range(d + 1, M)]) for d in range(dim_)])
+    term3 = -(const + dim_)*log(2*pi) + log(Az) + dim_*log(N)
+    prob = (2**-dim_)*prod([sps.gamma((M - d)/2.0)*pi**(-(M - d)/2.0)
+        for d in range(dim_)])
+    #print l_th, Az, prob
+    return l_th - log(prob) + term3/2.0
+
+def BIC_evid(X_, dim_):
+    "Evidence for BIC method."
+    N, M = shape(X_)
+    pca = PCA(n_components=dim_)
+    pca.fit(X_)
+    sigma2 = pca.noise_variance_
+    
+    ls = sl.eigh(X_.T.dot(X_), eigvals=(M - dim_, M - 1))[0]
+    l_th = (sum([log(ls[d]) for d in range(dim_)]) + (M - dim_)*log(sigma2))*N/2.0
+    const = M*dim_ - dim_*(dim_ + 1)/2.0
+    return l_th + (const + dim_)*log(N)/2.0
+
+def evid_select(Xs, D_range=range(1, 5), criterion=0, verbose=0):
+    "Evidence-based rank selection for PCA."
+    K = len(Xs)
+    evids = [[] for k in range(K)]
+    idcs = []
+    for k in range(K):
+        for D_ in D_range:
+            if criterion == 'LP': evids[k].append(LP_evid(Xs[k], D_))
+            elif criterion == 'BIC': evids[k].append(BIC_evid(Xs[k], D_))
+            if verbose: print criterion, D_, evids[k][-1]
+        if criterion in ['LP', 'BIC']: idcs.append(argmin(evids[k]))
+        else: print 'invalid criterion'
+    return [evids[k][idcs[k]] for k in range(K)], [D_range[idcs[k]] for k in range(K)]
+
+def KN_sigma2(evals, dim_, N, M):
+    "Estimation for KN method."
+    #print evals
+    s2 = mean(evals[dim_:])/(1 - dim_/float(N))
+    rhos = [roots([1, -(evals[d] + s2*(1 - (M - dim_)/float(N))), evals[d]*s2])[0] for d in range(dim_)]
+    diff = inf
+    count = 0
+    while diff > 1e-5 and count < 1e3:
+        #print s2, rhos, mean(evals[dim_:]), diff, count
+        new_s2 = (sum(evals[dim_:]) + sum([evals[d] - rhos[d] for d in range(dim_)]))/float(M - dim_)
+        rhos = [roots([1, -(evals[d] + new_s2*(1 - (M - dim_)/float(N))), evals[d]*new_s2])[0] for d in range(dim_)]
+        diff = abs(new_s2 - s2)
+        s2 = new_s2
+        count += 1
+    return real(s2)
+
+def KN_hypo(X_, d_, evals_):
+    "Hypothesis test for KN method."
+    N, M = shape(X_)
+    m_Np = (sqrt(N - 0.5) + sqrt(M - d_ - 0.5))**2/float(N)
+    s_Np = (sqrt(N - 0.5) + sqrt(M - d_ - 0.5))*(1/sqrt(N - 0.5) + 1/sqrt(M - d_ - 0.5))**(1/3.0)/float(N)
+    s2_KN = KN_sigma2(evals_, d_, N, M)
+    #print evals_[d_ - 1], s2_KN, m_Np, s_Np
+    return (evals_[d_ - 1]/s2_KN - m_Np)/s_Np
+
+def hypo_select(Xs, D_range=range(1, 5), hypo_test=0, alpha_level=0.05, verbose=0):
+    "Hypothesis-based rank selection for PCA."
+    K = len(Xs)
+    Ns, M = [shape(Xs[k])[0] for k in range(K)], shape(Xs[0])[1]
+    pvals, D_chs = [[] for k in range(K)], [D_range[0] - 1 for k in range(K)]
+    for k in range(K):
+        for d in D_range:
+            if hypo_test == 'KG':
+                evalues = list(sl.eigh(Xs[k].T.dot(Xs[k])/float(Ns[k]))[0][::-1])
+                pval = evalues[d - 1]
+                alpha_level = mean(evalues)
+                #print evalues[:6], evalues[-6:], mean(evalues)
+            if hypo_test == 'KN':
+                evalues = list(sl.eigh(Xs[k].T.dot(Xs[k])/float(Ns[k]))[0][::-1])
+                pval = KN_hypo(Xs[k], d, evalues)
+                alpha_level = 2.422  ## s(0.005), s(0.05): 2.422, 0.979
+            pvals[k].append(pval)
+            if pval > alpha_level: D_chs[k] += 1
+            else: break
+        D_chs[k] = max([D_chs[k], D_range[0]])
+    return pvals, D_chs
 
 def calc_alpha_pval(alpha, M, D, kappa_start=10, kappa_lim=1e6, verbose=0):
     "Calculates one-sided p-value for alpha estimate (equal or larger alpha)."
@@ -171,158 +262,6 @@ def ghi_m(max_kappa, a_const, a_vec, b_vec, dim, mat_const):
         s_[j] = 0
         for i in range(max_kappa[0], -1, -1): s_[j] = ss_[i] + s_[j]*mat_const[j]
     return s_, ss_
-
-def LP_evid(X_, dim_):
-    "Evidence for Laplace method."
-    N, M = shape(X_)
-    pca = PCA(n_components=dim_)
-    pca.fit(X_)
-    sigma2 = pca.noise_variance_
-    
-    ls = list(sl.eigh(X_.T.dot(X_))[0][::-1])
-    ls_ = [ls[d] for d in range(dim_)] + [sigma2 for d in range(dim_, M)]
-    l_th = (sum([log(ls[d]) for d in range(dim_)]) + (M - dim_)*log(sigma2))*N/2.0
-    const = M*dim_ - dim_*(dim_ + 1)/2.0
-    Az = prod([prod([N*(1.0/ls_[j] - 1.0/ls_[d])*(ls[d] - ls[j])
-        for j in range(d + 1, M)]) for d in range(dim_)])
-    term3 = -(const + dim_)*log(2*pi) + log(Az) + dim_*log(N)
-    prob = (2**-dim_)*prod([sps.gamma((M - d)/2.0)*pi**(-(M - d)/2.0)
-        for d in range(dim_)])
-    #print l_th, Az, prob
-    return l_th - log(prob) + term3/2.0
-
-def BIC_evid(X_, dim_):
-    "Evidence for BIC method."
-    N, M = shape(X_)
-    pca = PCA(n_components=dim_)
-    pca.fit(X_)
-    sigma2 = pca.noise_variance_
-    
-    ls = sl.eigh(X_.T.dot(X_), eigvals=(M - dim_, M - 1))[0]
-    l_th = (sum([log(ls[d]) for d in range(dim_)]) + (M - dim_)*log(sigma2))*N/2.0
-    const = M*dim_ - dim_*(dim_ + 1)/2.0
-    return l_th + (const + dim_)*log(N)/2.0
-
-def SURE_sigma2(X_, ls):
-    "Sigma^2 estimate for SURE."
-    N, M = shape(X_)
-    ls_1 = [ls[i]/percentile(ls, 100*(M - i)/float(M)) for i in range(M)]
-    #print ls_1
-    s2_ = percentile(ls_1, 25)#ls_1 / ls
-    ls_ = [l_/s2_ for l_ in ls]
-    b = ((N/float(M))**-0.5 + 1)**2
-    r_list = [ls_[i] - b for i in range(M)]
-    r = argmin([val + 2*max(abs(array(r_list)))*(val <= 0) for val in r_list])
-    ls_2 = [ls[i]/percentile(ls[r:], 100*(M - i)/float(M - r)) for i in range(r, M)]#_n
-    return percentile(ls_2, 25)
-
-def SURE_evid(X_, dim_, sigma2, ls):
-    "Evidence for SURE method."
-    N, M = shape(X_)
-    pca = PCA(n_components=dim_)
-    pca.fit(X_)
-    sigma2_pca = pca.noise_variance_
-    
-    sum_recip_r = sum([1/l_ for l_ in ls[:dim_]])
-    term1 = (M - dim_)*sigma2_pca + sigma2_pca**2*sum_recip_r + 2*sigma2*dim_
-    term2 = -2*sigma2*sigma2_pca*sum_recip_r + 4*sigma2*sigma2_pca*sum_recip_r/N
-    sum_sum = sum([sum([(l_ - sigma2_pca)/(l_ - l_2) for l_2 in ls[dim_:]])
-        for l_ in ls[:dim_]])
-    C_term = 4*sigma2/N*sum_sum + 2*sigma2/N*(dim_*(dim_ - 1) - (M - 1)*
-        sum([1 - sigma2_pca/l_ for l_ in ls[:dim_]]))
-    #print sigma2, sigma2_pca, term1, term2, C_term
-    return term1 + term2 + C_term
-
-def evid_select(Xs, D_range=range(1, 5), criterion=0, verbose=0):
-    "Evidence-based rank selection for PCA."
-    K = len(Xs)
-    Ns = [shape(Xs[k])[0] for k in range(K)]
-    evids = [[] for k in range(K)]
-    idcs = []
-    for k in range(K):
-        for D_ in D_range:
-            if criterion == 'LP': evids[k].append(LP_evid(Xs[k], D_))
-            elif criterion == 'BIC': evids[k].append(BIC_evid(Xs[k], D_))
-            elif criterion == 'SURE':
-                evalues = list(sl.eigh(Xs[k].T.dot(Xs[k]/float(Ns[k])))[0][::-1])
-                sigma2_est = SURE_sigma2(Xs[k], evalues)
-                evids[k].append(SURE_evid(Xs[k], D_, sigma2_est, evalues))
-            if verbose: print criterion, D_, evids[k][-1]
-        if criterion in ['LP', 'BIC', 'SURE']: idcs.append(argmin(evids[k]))
-        else: print 'invalid criterion'
-    return [evids[k][idcs[k]] for k in range(K)], [D_range[idcs[k]] for k in range(K)]
-
-def CSV_func(z, N_, M_, s2_, ls_, k_):
-    "Function for CSV method."
-    term = prod([abs(z**2 - ls_[i]**2) for i in range(M_) if i != k_ - 1])
-    return exp(-z**2/(2.0*s2_))*z**(N_ - M_)*term
-
-def CSV_hypo(X_, dim_, noise_v, svals):
-    "Hypothesis test for CSV method."
-    N, M = shape(X_)
-    num = si.quad(CSV_func, svals[dim_], svals[dim_ - 1], args=(N, M, noise_v, svals, dim_,))[0]
-    den = si.quad(CSV_func, svals[dim_ + 1], svals[dim_ - 1], args=(N, M, noise_v, svals, dim_,))[0]
-    #print num, den
-    return num/den
-
-def KN_sigma2(evals, dim_, N, M):
-    "Estimation for KN method."
-    #print evals
-    s2 = mean(evals[dim_:])/(1 - dim_/float(N))
-    rhos = [roots([1, -(evals[d] + s2*(1 - (M - dim_)/float(N))), evals[d]*s2])[0] for d in range(dim_)]
-    diff = inf
-    count = 0
-    while diff > 1e-5 and count < 1e3:
-        #print s2, rhos, mean(evals[dim_:]), diff, count
-        new_s2 = (sum(evals[dim_:]) + sum([evals[d] - rhos[d] for d in range(dim_)]))/float(M - dim_)
-        rhos = [roots([1, -(evals[d] + new_s2*(1 - (M - dim_)/float(N))), evals[d]*new_s2])[0] for d in range(dim_)]
-        diff = abs(new_s2 - s2)
-        s2 = new_s2
-        count += 1
-    return real(s2)
-
-def KN_hypo(X_, d_, evals_):
-    "Hypothesis test for KN method."
-    N, M = shape(X_)
-    m_Np = (sqrt(N - 0.5) + sqrt(M - d_ - 0.5))**2/float(N)
-    s_Np = (sqrt(N - 0.5) + sqrt(M - d_ - 0.5))*(1/sqrt(N - 0.5) + 1/sqrt(M - d_ - 0.5))**(1/3.0)/float(N)
-    s2_KN = KN_sigma2(evals_, d_, N, M)
-    #print evals_[d_ - 1], s2_KN, m_Np, s_Np
-    return (evals_[d_ - 1]/s2_KN - m_Np)/s_Np
-
-def hypo_select(Xs, D_range=range(1, 5), hypo_test=0, alpha_level=0.05, verbose=0):
-    "Hypothesis-based rank selection for PCA."
-    K = len(Xs)
-    Ns, M = [shape(Xs[k])[0] for k in range(K)], shape(Xs[0])[1]
-    pvals, D_chs = [[] for k in range(K)], [D_range[0] - 1 for k in range(K)]
-    for k in range(K):
-        for d in D_range:
-            if hypo_test == 'KG':
-                evalues = list(sl.eigh(Xs[k].T.dot(Xs[k])/float(Ns[k]))[0][::-1])
-                pval = evalues[d - 1]
-                alpha_level = mean(evalues)
-                #print evalues[:6], evalues[-6:], mean(evalues)
-            if hypo_test == 'BRT':
-                evalues = list(sl.eigh(Xs[k].T.dot(Xs[k])/float(Ns[k]))[0][::-1])
-                pval = (M - d)*log(sum([evalues[i]/float(M - d) for i in range(d, M)])) - sum(
-                    [evalues[i] for i in range(d, M)])
-                alpha_level = ss.chi2.cdf(1 - 0.005, 0.5*(M - d - 1)*(M - d + 2))
-            if hypo_test == 'CSV':
-                pca = PCA(n_components=d)
-                pca.fit(Xs[k])
-                sing_vals = list(linalg.svd(Xs[k])[1])
-                #sigma2_est = mean([sing_vals[i]**2 for i in range(d, M)])/Ns[k]
-                pval = CSV_hypo(Xs[k], d, pca.noise_variance_, [inf] + sing_vals)
-                alpha_level = 0.1
-            if hypo_test == 'KN':
-                evalues = list(sl.eigh(Xs[k].T.dot(Xs[k])/float(Ns[k]))[0][::-1])
-                pval = KN_hypo(Xs[k], d, evalues)
-                alpha_level = 2.422  ## s(0.005), s(0.05): 2.422, 0.979
-            pvals[k].append(pval)
-            if pval > alpha_level: D_chs[k] += 1
-            else: break
-        D_chs[k] = max([D_chs[k], D_range[0]])
-    return pvals, D_chs
 
 def group_data_gen(dims, D, sigma, W_=0, H_=0):
     """Data generation for matrix decomposition problems (+/-).
