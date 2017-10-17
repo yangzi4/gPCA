@@ -40,41 +40,33 @@ for gen_seed in range(0, 25)[:]:
             
             random.seed(1)
             res_gPCA = gPCA_select(X_cd, D_range=D_range_, vers=1)
-            res_gPCA2 = gPCA_select(X_cd, D_range=D_range_, vers=2)
-            res_LP = evid_select([vstack(X_cd)], D_range=D_range_, criterion='LP', verbose=0)
-            res_BIC = evid_select([vstack(X_cd)], D_range=D_range_, criterion='BIC', verbose=0)
-            #res_SURE = evid_select(X_cd, D_range=D_range_, criterion='SURE', verbose=0)
-            res_KG = hypo_select([vstack(X_cd)], D_range=D_range_, hypo_test='KG', verbose=0)
-            #res_BRT = hypo_select(X_cd, D_range=D_range_, hypo_test='BRT', verbose=0)
-            #res_CSV = hypo_select(X_cd, D_range=D_range_, hypo_test='CSV', verbose=0)
-            #res_ICSV = hypo_select(X_cd, D_range=D_range_, hypo_test='ICSV', verbose=0)
-            res_KN = hypo_select([vstack(X_cd)], D_range=D_range_, hypo_test='KN', verbose=0)
+            #res_gPCA2 = gPCA_select(X_cd, D_range=D_range_, vers=2)
+            #res_LP = evid_select([vstack(X_cd)], D_range=D_range_, criterion='LP', verbose=0)
+            #res_BIC = evid_select([vstack(X_cd)], D_range=D_range_, criterion='BIC', verbose=0)
+            #res_KG = hypo_select([vstack(X_cd)], D_range=D_range_, hypo_test='KG', verbose=0)
+            #res_KN = hypo_select([vstack(X_cd)], D_range=D_range_, hypo_test='KN', verbose=0)
             
             Dest_list.append([
-                D_t == D_range_[res_gPCA[3]],
-                D_t == D_range_[res_gPCA2[3]],
-                #mean([D_t == res_LP[1][k] for k in range(K)]),
-                D_t == res_LP[1][0],
-                #mean([D_t == res_BIC[1][k] for k in range(K)]),
-                D_t == res_BIC[1][0],
-                #mean([D_t == res_SURE[1][k] for k in range(K)]),
-                #mean([D_t == res_KG[1][k] for k in range(K)]),
-                D_t == res_KG[1][0],
-                #mean([D_t == res_BRT[1][k] for k in range(K)]),
-                #mean([D_t == res_CSV[1][k] for k in range(K)]),
-                #mean([D_t == res_ICSV[1][k] for k in range(K)]),
-                #mean([D_t == res_KN[1][k] for k in range(K)]),
-                D_t == res_KN[1][0],
-                ])
+                D_t == D_range_[res_gPCA[3]]#,
+                #D_t == D_range_[res_gPCA2[3]],
+                ##mean([D_t == res_LP[1][k] for k in range(K)]),
+                #D_t == res_LP[1][0],
+                ##mean([D_t == res_BIC[1][k] for k in range(K)]),
+                #D_t == res_BIC[1][0],
+                ##mean([D_t == res_KG[1][k] for k in range(K)]),
+                #D_t == res_KG[1][0],
+                ##mean([D_t == res_KN[1][k] for k in range(K)]),
+                #D_t == res_KN[1][0],
+                ]*6)
             if Dest: print 'Dest:', Dest_list[-1]
             Pval_list.append([
                 res_gPCA[1][res_gPCA[3]],
                 calc_alpha_pval(res_gPCA[1][res_gPCA[3]], M, D_range_[res_gPCA[3]]),
-                calc_alpha_pval2(res_gPCA[1][res_gPCA[3]], X_cd, D_range_[res_gPCA[3]])[0],
-                res_gPCA2[1][res_gPCA2[3]],
-                calc_alpha_pval(res_gPCA2[1][res_gPCA2[3]], M, D_range_[res_gPCA2[3]]),
-                calc_alpha_pval2(res_gPCA2[1][res_gPCA2[3]], X_cd, D_range_[res_gPCA2[3]])[0],
-            ])
+                calc_alpha_pval2(res_gPCA[1][res_gPCA[3]], X_cd, D_range_[res_gPCA[3]])[0]#,
+                #res_gPCA2[1][res_gPCA2[3]],
+                #calc_alpha_pval(res_gPCA2[1][res_gPCA2[3]], M, D_range_[res_gPCA2[3]]),
+                #calc_alpha_pval2(res_gPCA2[1][res_gPCA2[3]], X_cd, D_range_[res_gPCA2[3]])[0],
+            ]*2)
             if Pval: print 'Pval:', around(array(Pval_list[-1]), 3)
         Dest_listlist.append(Dest_list)
         Pval_listlist.append(Pval_list)
@@ -84,6 +76,8 @@ for gen_seed in range(0, 25)[:]:
     if Pval: save('Pval(%dx%d)x%d_D%ds%d_%d' % (grp_N, M, K, D_t, sigma_*100, gen_seed),
         array(Pval_listlist))
 
+
+#os.chdir('C:/~')
 
 def plot_Dest(p1, p2, p3, p4, svfg_=0, v_='', optn=0, lgnd=0):
     ## retrieve
@@ -106,6 +100,7 @@ def plot_Dest(p1, p2, p3, p4, svfg_=0, v_='', optn=0, lgnd=0):
         vals_sd += (load_ - vals)**2
     vals2 = vals_sd/n_s
     
+    #os.chdir('C:/~')
     #JIVE_vals = loadtxt('DestJIVE(%dx%d)x%d_D%ds%d_%d.txt' % (grp_N, M, K,
     #    D_t, sigma_*100, len(gen_seed_list)))
     
@@ -172,6 +167,7 @@ def plot_Pval(p1, p2, p3, p4, svfg_=0, v_='', optn=0, lgnd=0):
         vals_sd += (load_ - vals)**2
     vals2 = sqrt(vals_sd/n_s)
     
+    #os.chdir('C:/Users/ZI/Desktop/Work/Research/Code/gPCA/rank selection 3 (main)')
     #JIVE_vals = loadtxt('DestJIVE(%dx%d)x%d_D%ds%d_%d.txt' % (grp_N, M, K,
     #    D_t, sigma_*100, len(gen_seed_list)))
     
@@ -225,9 +221,9 @@ alpha_range = arange(0, 1.01, 0.1)
 if 1:
     plt.close('all')
     svfg = 1
-    plot_Dest(39, 16, 2, 0.1, svfg, '', '(a)', 1)
-    plot_Pval(39, 16, 2, 0.1, svfg, '', '(b)', 1)
     plot_Dest(13, 16, 3, 0.1, svfg, '', '(a)', 1)
     plot_Pval(13, 16, 3, 0.1, svfg, '', '(b)', 1)
+    plot_Dest(39, 16, 2, 0.1, svfg, '', '(a)', 1)
+    plot_Pval(39, 16, 2, 0.1, svfg, '', '(b)', 1)
 
 
