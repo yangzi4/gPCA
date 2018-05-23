@@ -48,7 +48,7 @@ for gen_seed in range(0, 25)[:]:
             
             Dest_list.append([
                 D_t == D_range_[res_gPCA[3]]#,
-                #D_t == D_range_[res_gPCA2[3]],
+                D_range_[res_gPCA[3]],
                 ##mean([D_t == res_LP[1][k] for k in range(K)]),
                 #D_t == res_LP[1][0],
                 ##mean([D_t == res_BIC[1][k] for k in range(K)]),
@@ -57,7 +57,7 @@ for gen_seed in range(0, 25)[:]:
                 #D_t == res_KG[1][0],
                 ##mean([D_t == res_KN[1][k] for k in range(K)]),
                 #D_t == res_KN[1][0],
-                ]*6)
+                ])
             if Dest: print 'Dest:', Dest_list[-1]
             Pval_list.append([
                 res_gPCA[1][res_gPCA[3]],
@@ -223,7 +223,7 @@ if 1:
     svfg = 1
     plot_Dest(13, 16, 3, 0.1, svfg, '', '(a)', 1)
     plot_Pval(13, 16, 3, 0.1, svfg, '', '(b)', 1)
-    plot_Dest(39, 16, 2, 0.1, svfg, '', '(a)', 1)
-    plot_Pval(39, 16, 2, 0.1, svfg, '', '(b)', 1)
+    #plot_Dest(39, 16, 2, 0.1, svfg, '', '(a)', 1)
+    #plot_Pval(39, 16, 2, 0.1, svfg, '', '(b)', 1)
 
 
