@@ -32,6 +32,9 @@ for gen_seed in range(0, 25)[:]:
             random.seed(gen_seed)
             w_cd = [alpha*w_c + sqrt(1 - alpha**2)*w_d[k] for k in range(K)]
             X_cd_ = group_data_gen(dims_d, D_t, sigma_, H_=w_cd)
+            #X_cd_c = group_data_gen(dims_d, D_t, sigma_, H_=[w_c for k in range(K)])
+            #X_cd_d = group_data_gen(dims_d, D_t, sigma_, H_=w_d)
+            #X_cd = [alpha*X_cd_c[0][k] + sqrt(1 - alpha**2)*X_cd_d[0][k] for k in range(K)]
             X_cd, X_cd_ne, X_cd_e = X_cd_[0], [X_cd_[1][k].dot(X_cd_[2][k]) for k in range(K)], X_cd_[3]
             
             if save_data:
